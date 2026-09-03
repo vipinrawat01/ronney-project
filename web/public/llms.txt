@@ -1,0 +1,18 @@
+## Pages
+- [| Alliraa Textile](/category/:type/:subcategory): No description available
+- [About Us | Alliraa Textile](/about): Discover the heritage, craftsmanship, and values behind Alliraa Textile
+- [Admin Dashboard | Alliraa](/admindashboard): No description available
+- [Admin Login - Alliraa](/login): No description available
+- [Boho Maxi Collection - Alliraa Textile](/bohomaxi): Browse our boho maxi collection featuring flowing fabrics and artisanal details for effortless elegance.
+- [Checkout | Alliraa Textile](/checkout): No description available
+- [Contact Us | Alliraa Textile](/contact): Get in touch with the Alliraa Textile team for inquiries, bespoke requests, or support.
+- [Floral Dress Collection - Alliraa Textile](/floraldress): Explore our floral dress collection featuring hand-painted botanical prints on premium cotton and silk blends.
+- [Kimono Dress Collection - Alliraa Textile](/kimonodress): Discover our kimono collection where traditional craftsmanship meets contemporary design in handcrafted silk and linen pieces.
+- [Luxury Bags Collection - Alliraa Textile](/bags): Explore our collection of handcrafted tote bags and pouches combining durability with timeless style.
+- [My Account | Alliraa Textile](/profile): No description available
+- [Order History | Alliraa Textile](/orders): No description available
+- [PJ Set Collection - Alliraa Textile](/pjset): Discover our luxury pajama sets crafted from premium silk, linen, and cotton for ultimate comfort.
+- [Shop Collection | Alliraa Textile](/shop): No description available
+- [Shop Collection | Alliraa Textile](/shop): Browse our complete collection of premium handcrafted textiles.
+- [Shopping Cart | Alliraa Textile](/cart): No description available
+- [Wishlist | Alliraa Textile](/wishlist): No description available

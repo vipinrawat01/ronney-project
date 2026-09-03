@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Alliraa Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <section id="login-view" class="login-view">
+      <form id="login-form" class="login-card">
+        <p class="brand">Alliraa</p>
+        <h1>Admin Panel</h1>
+        <p class="muted">Manage categories, products, and variants</p>
+        <label>Email<input type="email" id="login-email" value="admin@alliraa.com" required /></label>
+        <label>Password<input type="password" id="login-password" value="admin123" required /></label>
+        <button type="submit">Sign in</button>
+        <p id="login-error" class="error"></p>
+      </form>
+    </section>
+
+    <section id="dashboard" class="dashboard hidden">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <span class="brand">Alliraa</span>
+          <small>Admin</small>
+        </div>
+        <nav>
+          <button data-view="categories" class="nav-btn active">Categories</button>
+          <button data-view="products" class="nav-btn">Products</button>
+          <button data-view="branding" class="nav-btn">Branding</button>
+        </nav>
+        <button id="logout-btn" class="logout">Sign out</button>
+      </aside>
+
+      <main class="content">
+        <div id="view-categories" class="view">
+          <header class="view-header">
+            <div>
+              <h2>Categories</h2>
+              <p class="muted">Add top-level types and subcategories with images</p>
+            </div>
+            <button id="add-category-btn" class="primary">Add category</button>
+          </header>
+          <div id="categories-list" class="card-list"></div>
+        </div>
+
+        <div id="view-products" class="view hidden">
+          <header class="view-header">
+            <div>
+              <h2>Products</h2>
+              <p class="muted">Products with variants and per-variant images</p>
+            </div>
+            <button id="add-product-btn" class="primary">Add product</button>
+          </header>
+          <div id="products-list" class="table-wrap"></div>
+        </div>
+
+        <div id="view-branding" class="view hidden">
+          <header class="view-header">
+            <div>
+              <h2>Branding</h2>
+              <p class="muted">Theme colours, fonts, hero, and banners for the website</p>
+            </div>
+            <button id="save-branding-btn" class="primary" type="button">Save changes</button>
+          </header>
+          <form id="branding-form" class="branding-form">
+            <section class="brand-section card-panel">
+              <h3>Store identity</h3>
+              <div class="grid-2">
+                <label>Store name<input id="brand-store-name" /></label>
+                <label>Logo URL<input id="brand-logo-url" placeholder="Optional — or upload below" /></label>
+              </div>
+              <div class="image-field">
+                <label>Logo image</label>
+                <div class="image-row">
+                  <img id="brand-logo-preview" alt="" class="thumb hidden" />
+                  <input type="file" id="brand-logo-file" accept="image/*" />
+                </div>
+              </div>
+            </section>
+
+            <section class="brand-section card-panel">
+              <h3>Theme colours</h3>
+              <div class="color-grid">
+                <label>Primary <input type="color" id="brand-color-primary" /><input id="brand-color-primary-hex" class="hex-input" /></label>
+                <label>Secondary <input type="color" id="brand-color-secondary" /><input id="brand-color-secondary-hex" class="hex-input" /></label>
+                <label>Background <input type="color" id="brand-color-background" /><input id="brand-color-background-hex" class="hex-input" /></label>
+                <label>Foreground <input type="color" id="brand-color-foreground" /><input id="brand-color-foreground-hex" class="hex-input" /></label>
+              </div>
+            </section>
+
+            <section class="brand-section card-panel">
+              <h3>Fonts</h3>
+              <div class="grid-3">
+                <label>Heading font
+                  <select id="brand-font-heading">
+                    <option>Playfair Display</option>
+                    <option>Cormorant Garamond</option>
+                    <option>Libre Baskerville</option>
+                    <option>Lora</option>
+                    <option>DM Serif Display</option>
+                    <option>Manrope</option>
+                    <option>DM Sans</option>
+                    <option>Inter</option>
+                  </select>
+                </label>
+                <label>Body font
+                  <select id="brand-font-body">
+                    <option>Manrope</option>
+                    <option>DM Sans</option>
+                    <option>Inter</option>
+                    <option>Source Sans 3</option>
+                    <option>Lora</option>
+                    <option>Playfair Display</option>
+                  </select>
+                </label>
+                <label>Accent font
+                  <select id="brand-font-accent">
+                    <option>Cormorant Garamond</option>
+                    <option>Playfair Display</option>
+                    <option>Libre Baskerville</option>
+                    <option>Great Vibes</option>
+                    <option>Manrope</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section class="brand-section card-panel">
+              <h3>Hero banner</h3>
+              <div class="image-field">
+                <label>Hero image</label>
+                <div class="image-row">
+                  <img id="brand-hero-preview" alt="" class="thumb-lg hidden" />
+                  <input type="hidden" id="brand-hero-image" />
+                  <input type="file" id="brand-hero-file" accept="image/*" />
+                </div>
+                <label>Hero image URL<input id="brand-hero-image-url" placeholder="https://…" /></label>
+              </div>
+              <div class="grid-2">
+                <label>Badge<input id="brand-hero-badge" /></label>
+                <label>Title<input id="brand-hero-title" /></label>
+              </div>
+              <label>Subtitle<textarea id="brand-hero-subtitle" rows="2"></textarea></label>
+            </section>
+
+            <section class="brand-section card-panel">
+              <div class="section-head">
+                <h3>Promo banners</h3>
+                <label class="toggle-row"><input type="checkbox" id="brand-show-promo" checked /> Show on website</label>
+              </div>
+              <div id="promo-banners-editor" class="promo-editor"></div>
+              <button type="button" id="add-promo-btn" class="ghost">+ Add promo banner</button>
+            </section>
+
+            <section class="brand-section card-panel">
+              <div class="section-head">
+                <h3>Brand story</h3>
+                <label class="toggle-row"><input type="checkbox" id="brand-show-story" checked /> Show on website</label>
+              </div>
+              <div class="image-field">
+                <label>Story image</label>
+                <div class="image-row">
+                  <img id="brand-story-preview" alt="" class="thumb-lg hidden" />
+                  <input type="hidden" id="brand-story-image" />
+                  <input type="file" id="brand-story-file" accept="image/*" />
+                </div>
+                <label>Story image URL<input id="brand-story-image-url" placeholder="https://…" /></label>
+              </div>
+              <label>Story title<input id="brand-story-title" /></label>
+              <label>Paragraph 1<textarea id="brand-story-p1" rows="3"></textarea></label>
+              <label>Paragraph 2<textarea id="brand-story-p2" rows="3"></textarea></label>
+            </section>
+
+            <section class="brand-section card-panel">
+              <div class="section-head">
+                <h3>Manifesto</h3>
+                <label class="toggle-row"><input type="checkbox" id="brand-show-manifesto" checked /> Show on website</label>
+              </div>
+              <label>Manifesto line<input id="brand-manifesto" /></label>
+            </section>
+
+            <p id="branding-status" class="muted"></p>
+          </form>
+        </div>
+      </main>
+    </section>
+  </div>
+
+  <dialog id="category-dialog">
+    <form id="category-form" method="dialog">
+      <h3 id="category-dialog-title">Category</h3>
+      <input type="hidden" id="cat-id" />
+      <label>Name<input id="cat-name" required /></label>
+      <label>Slug<input id="cat-slug" placeholder="auto from name" /></label>
+      <label>Type
+        <select id="cat-type">
+          <option value="women">Women</option>
+          <option value="men">Men</option>
+          <option value="unisex">Unisex</option>
+        </select>
+      </label>
+      <label>Parent category
+        <select id="cat-parent"><option value="">None (top-level)</option></select>
+      </label>
+      <label>Description<textarea id="cat-description" rows="3"></textarea></label>
+      <label>Sort order<input id="cat-sort" type="number" value="0" /></label>
+      <div class="image-field">
+        <label>Image</label>
+        <div class="image-row">
+          <img id="cat-image-preview" alt="" class="thumb hidden" />
+          <input type="hidden" id="cat-image-url" />
+          <input type="file" id="cat-image-file" accept="image/*" />
+        </div>
+      </div>
+      <div class="fabrics-field">
+        <div class="fabrics-header">
+          <label>Fabrics</label>
+          <button type="button" class="ghost" id="add-fabric-btn">+ Add fabric</button>
+        </div>
+        <p class="muted small">Each fabric needs a name and image — shown as swatches on the category page.</p>
+        <div id="fabrics-editor" class="fabrics-editor"></div>
+      </div>
+      <div class="fabrics-field">
+        <div class="fabrics-header">
+          <label>Prints</label>
+          <button type="button" class="ghost" id="add-print-btn">+ Add print</button>
+        </div>
+        <p class="muted small">Print options like Solid, Floral, Geo, Stripe — shown as buttons on the category page.</p>
+        <div id="prints-editor" class="fabrics-editor"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" id="cat-cancel">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="product-dialog">
+    <form id="product-form" method="dialog">
+      <h3 id="product-dialog-title">Product</h3>
+      <input type="hidden" id="prod-id" />
+      <div class="grid-2">
+        <label>Title<input id="prod-title" required /></label>
+        <label>Slug<input id="prod-slug" placeholder="auto from title" /></label>
+      </div>
+      <label>Subtitle<input id="prod-subtitle" /></label>
+      <label>Description<textarea id="prod-description" rows="3"></textarea></label>
+      <div class="grid-2">
+        <label>Category
+          <select id="prod-category"><option value="">Select…</option></select>
+        </label>
+        <label>Status
+          <select id="prod-status">
+            <option value="active">Active</option>
+            <option value="draft">Draft</option>
+            <option value="hidden">Hidden</option>
+          </select>
+        </label>
+      </div>
+      <label>Ribbon text<input id="prod-ribbon" placeholder="New / Bestseller" /></label>
+      <div class="image-field">
+        <label>Thumbnail</label>
+        <div class="image-row">
+          <img id="prod-thumb-preview" alt="" class="thumb hidden" />
+          <input type="hidden" id="prod-thumbnail" />
+          <input type="file" id="prod-thumb-file" accept="image/*" />
+        </div>
+      </div>
+      <div class="image-field">
+        <label>Product gallery images</label>
+        <div id="prod-gallery" class="gallery"></div>
+        <input type="file" id="prod-gallery-file" accept="image/*" multiple />
+      </div>
+
+      <div class="variants-block">
+        <div class="variants-header">
+          <h4>Variants</h4>
+          <button type="button" id="add-variant-btn" class="ghost">+ Add variant</button>
+        </div>
+        <div id="variants-editor"></div>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="ghost" id="prod-cancel">Cancel</button>
+        <button type="submit" class="primary">Save product</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/admin/app.js"></script>
+</body>
+</html>

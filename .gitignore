@@ -1,0 +1,30 @@
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Go (api/) ---
+api/uploads/
+api/*.exe
+api/*.exe~
+api/*.test
+api/*.out
+/api/tmp/
+/api/bin/
+
+# --- Node / Vite (web/) ---
+web/node_modules/
+web/dist/
+web/build/
+web/.vite/
+web/*.local
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+web/pnpm-debug.log*
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
