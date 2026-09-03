@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getCategories } from '@/api/EcommerceApi.js';
+import { API_BASE } from '@/api/AdminApi.js';
 import { luxuryEase } from '@/lib/motionVariants.js';
 import { cn } from '@/lib/utils.js';
 
@@ -115,7 +116,7 @@ const ShopByCategoryCarousel = ({ headingAs = 'h2', className = '' }) => {
             <p className="text-muted-foreground mb-8">
               Add categories with images in the admin panel to populate this carousel.
             </p>
-            <a href="http://localhost:8081/admin/" className="luxury-button luxury-button-primary">
+            <a href={`${API_BASE}/admin/`} className="luxury-button luxury-button-primary">
               Open Admin
             </a>
           </div>

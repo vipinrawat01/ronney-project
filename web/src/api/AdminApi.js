@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8081";
+export const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8081";
 const TOKEN_KEY = "alliraa_admin_token";
 
 export function getAdminToken() {
@@ -107,5 +107,3 @@ export async function updateBranding(body) {
   }
   return data;
 }
-
-export { API_BASE };

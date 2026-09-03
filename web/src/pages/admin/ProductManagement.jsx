@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
+  API_BASE,
   createProduct,
   deleteProduct,
   getProduct,
@@ -158,7 +159,7 @@ const ProductManagement = () => {
         <div>
           <h1 className="text-2xl font-serif">Products</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Full variant/image editor: <a className="underline" href="http://localhost:8081/admin/" target="_blank" rel="noreferrer">localhost:8081/admin</a>
+            Full variant/image editor: <a className="underline" href={`${API_BASE}/admin/`} target="_blank" rel="noreferrer">{API_BASE.replace(/^https?:\/\//, '')}/admin</a>
           </p>
         </div>
         <Button onClick={openCreate}>Add Product</Button>

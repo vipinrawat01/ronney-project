@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
+  API_BASE,
   createCategory,
   deleteCategory,
   listCategories,
@@ -229,7 +230,7 @@ const CategoryManagement = () => {
         <div>
           <h1 className="text-2xl font-serif">Categories</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Prefer the full admin at <a className="underline" href="http://localhost:8081/admin/" target="_blank" rel="noreferrer">localhost:8081/admin</a>
+            Prefer the full admin at <a className="underline" href={`${API_BASE}/admin/`} target="_blank" rel="noreferrer">{API_BASE.replace(/^https?:\/\//, '')}/admin</a>
           </p>
         </div>
         <Button onClick={openCreate}>Add Category</Button>

@@ -27,7 +27,11 @@ async function api(path, options = {}) {
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = { error: text }; }
-  if (!res.ok) throw new Error(data?.error || res.statusText);
+  if (!res.ok) {
+    const err = new Error(data?.error || res.statusText);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -1117,20 +1121,42 @@ function bindEvents() {
   });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function boot() {
   bindEvents();
   if (!state.token) {
     showLogin();
     return;
   }
-  try {
-    await api("/api/admin/me");
-    showDashboard();
-    await Promise.all([loadCategories(), loadProducts(), loadBranding()]);
-  } catch {
-    state.token = "";
-    localStorage.removeItem(TOKEN_KEY);
-    showLogin();
+  // The API host may be cold-starting (e.g. Render free tier spinning up
+  // after idle), so a transient failure here doesn't mean the token is
+  // invalid. Retry once before giving up, and only clear the session on an
+  // actual 401 from the server.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await api("/api/admin/me");
+      showDashboard();
+      await Promise.all([loadCategories(), loadProducts(), loadBranding()]);
+      return;
+    } catch (err) {
+      if (err.status === 401) {
+        state.token = "";
+        localStorage.removeItem(TOKEN_KEY);
+        showLogin();
+        return;
+      }
+      if (attempt === 0) {
+        await sleep(2500);
+        continue;
+      }
+      // Still failing after a retry (server unreachable, etc.) — keep the
+      // token and let the user manually retry rather than forcing a re-login.
+      showLogin();
+      $("#login-error").textContent = "Could not reach the server. Please try again.";
+    }
   }
 }
 
