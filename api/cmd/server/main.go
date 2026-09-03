@@ -34,9 +34,6 @@ func main() {
 	if err := database.EnsureCategoryPrintsColumn(db); err != nil {
 		log.Fatalf("migrate category prints: %v", err)
 	}
-	if err := database.EnsureCatalogSeed(db); err != nil {
-		log.Fatalf("seed catalog: %v", err)
-	}
 	if err := database.EnsureBranding(db); err != nil {
 		log.Fatalf("seed branding: %v", err)
 	}
