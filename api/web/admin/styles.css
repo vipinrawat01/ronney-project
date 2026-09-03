@@ -64,6 +64,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 .brand-block { display: grid; gap: 4px; }
 .brand-block .brand { color: #f7f1e8; font-size: 1.8rem; }
@@ -391,7 +395,7 @@ input, select, textarea {
 
 @media (max-width: 860px) {
   .dashboard { grid-template-columns: 1fr; }
-  .sidebar { flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .sidebar { flex-direction: row; align-items: center; flex-wrap: wrap; position: static; height: auto; overflow-y: visible; }
   .logout { margin-top: 0; margin-left: auto; }
   .grid-2, .variant-card .grid-3, .grid-3, .color-grid { grid-template-columns: 1fr; }
   .cat-card, .child-card { grid-template-columns: 72px 1fr; }

@@ -38,6 +38,46 @@ async function uploadFile(file) {
   return data.url;
 }
 
+// --- Deferred upload helpers -------------------------------------------
+// File inputs never upload on selection. Instead they attach a local
+// object-URL preview and stash the raw File on the holder object under
+// `_pendingFile`. Only when the enclosing form is actually submitted do we
+// walk the collected state and upload any pending files to Cloudinary,
+// replacing `_pendingFile` with the real hosted URL. If the user cancels
+// the dialog, the File is simply discarded and nothing ever touches
+// Cloudinary.
+
+function setPendingFile(holder, file) {
+  if (holder._previewUrl) URL.revokeObjectURL(holder._previewUrl);
+  holder._pendingFile = file;
+  holder._previewUrl = URL.createObjectURL(file);
+  holder.image = holder._previewUrl;
+}
+
+function revokePreview(holder) {
+  if (holder?._previewUrl) URL.revokeObjectURL(holder._previewUrl);
+}
+
+// Uploads any `_pendingFile` on the given item, replacing image/url field
+// with the resulting Cloudinary URL. `field` is the property name holding
+// the URL (default "image").
+async function resolvePendingFile(item, field = "image") {
+  if (!item?._pendingFile) return;
+  const url = await uploadFile(item._pendingFile);
+  revokePreview(item);
+  item[field] = url;
+  delete item._pendingFile;
+  delete item._previewUrl;
+}
+
+// Resolves every pending file inside an array of items (fabrics, prints,
+// gallery-style objects, etc).
+async function resolvePendingFilesIn(items, field = "image") {
+  for (const item of items) {
+    await resolvePendingFile(item, field);
+  }
+}
+
 function showLogin() {
   $("#login-view").classList.remove("hidden");
   $("#dashboard").classList.add("hidden");
@@ -139,7 +179,11 @@ function collectPromoFromDOM() {
   $$("[data-promo-field]").forEach((el) => {
     const i = Number(el.dataset.i);
     const field = el.dataset.promoField;
-    if (state.promoBanners[i]) state.promoBanners[i][field] = el.value;
+    if (!state.promoBanners[i]) return;
+    // Keep the local preview URL while a file is pending upload; the manual
+    // "Image URL" text input only takes effect once no file is pending.
+    if (field === "image" && state.promoBanners[i]._pendingFile) return;
+    state.promoBanners[i][field] = el.value;
   });
 }
 
@@ -247,7 +291,7 @@ function collectBrandingPayload() {
       title: ($("#brand-hero-title")?.value || "").trim(),
       subtitle: ($("#brand-hero-subtitle")?.value || "").trim(),
     },
-    promo_banners: state.promoBanners,
+    promo_banners: state.promoBanners.map(({ _pendingFile, _previewUrl, ...b }) => b),
     brand_story: {
       image_url: storyImage,
       title: ($("#brand-story-title")?.value || "").trim(),
@@ -264,9 +308,35 @@ function collectBrandingPayload() {
 async function saveBranding() {
   const status = $("#branding-status");
   const btn = $("#save-branding-btn");
-  if (status) status.textContent = "Saving…";
   if (btn) btn.disabled = true;
   try {
+    if (status) status.textContent = "Uploading images…";
+    if (state.brandLogoPending) {
+      const url = await uploadFile(state.brandLogoPending);
+      if (state.brandLogoPreviewUrl) URL.revokeObjectURL(state.brandLogoPreviewUrl);
+      state.brandLogoPending = null;
+      state.brandLogoPreviewUrl = null;
+      $("#brand-logo-url").value = url;
+    }
+    if (state.brandHeroPending) {
+      const url = await uploadFile(state.brandHeroPending);
+      if (state.brandHeroPreviewUrl) URL.revokeObjectURL(state.brandHeroPreviewUrl);
+      state.brandHeroPending = null;
+      state.brandHeroPreviewUrl = null;
+      $("#brand-hero-image").value = url;
+      $("#brand-hero-image-url").value = url;
+    }
+    if (state.brandStoryPending) {
+      const url = await uploadFile(state.brandStoryPending);
+      if (state.brandStoryPreviewUrl) URL.revokeObjectURL(state.brandStoryPreviewUrl);
+      state.brandStoryPending = null;
+      state.brandStoryPreviewUrl = null;
+      $("#brand-story-image").value = url;
+      $("#brand-story-image-url").value = url;
+    }
+    await resolvePendingFilesIn(state.promoBanners);
+
+    if (status) status.textContent = "Saving…";
     const data = await api("/api/admin/branding", { method: "PUT", body: collectBrandingPayload() });
     fillBrandingForm(data.branding || {});
     try {
@@ -409,6 +479,8 @@ function openCategoryDialog(cat = null) {
   $("#cat-description").value = cat?.description || "";
   $("#cat-sort").value = cat?.sort_order ?? 0;
   $("#cat-image-url").value = cat?.image_url || "";
+  state.catImagePending = null;
+  state.catImagePreviewUrl = null;
   const preview = $("#cat-image-preview");
   if (cat?.image_url) {
     preview.src = cat.image_url;
@@ -460,11 +532,15 @@ function collectFabricsFromDOM() {
   $$("#fabrics-editor .fabric-card").forEach((card) => {
     const i = Number(card.dataset.fabricIndex);
     const get = (name) => card.querySelector(`[data-f="${name}"]`)?.value || "";
+    const existing = state.fabrics[i] || {};
+    const imageField = get("image").trim();
     state.fabrics[i] = {
-      ...state.fabrics[i],
+      ...existing,
       name: get("name").trim(),
-      image: get("image").trim(),
-      id: state.fabrics[i]?.id || "",
+      // Keep the local preview URL while a file is pending upload; only the
+      // manual "Image URL" text input can override it once no file is pending.
+      image: existing._pendingFile ? existing.image : imageField,
+      id: existing.id || "",
     };
   });
 }
@@ -494,19 +570,21 @@ function collectPrintsFromDOM() {
   $$("#prints-editor .print-card").forEach((card) => {
     const i = Number(card.dataset.printIndex);
     const get = (name) => card.querySelector(`[data-p="${name}"]`)?.value || "";
+    const existing = state.prints[i] || {};
+    const imageField = get("image").trim();
     state.prints[i] = {
-      ...state.prints[i],
+      ...existing,
       name: get("name").trim(),
-      image: get("image").trim(),
-      id: state.prints[i]?.id || "",
+      image: existing._pendingFile ? existing.image : imageField,
+      id: existing.id || "",
     };
   });
 }
 
 function renderGallery() {
-  $("#prod-gallery").innerHTML = state.gallery.map((url, i) => `
+  $("#prod-gallery").innerHTML = state.gallery.map((item, i) => `
     <div class="gallery-item">
-      <img src="${url}" alt="" />
+      <img src="${item.image}" alt="" />
       <button type="button" data-remove-gallery="${i}">×</button>
     </div>`).join("");
 }
@@ -532,9 +610,9 @@ function renderVariantsEditor() {
       <div class="image-field">
         <label>Variant images</label>
         <div class="gallery">
-          ${(v.images || []).map((url, j) => `
+          ${(v.images || []).map((item, j) => `
             <div class="gallery-item">
-              <img src="${url}" alt="" />
+              <img src="${item.image}" alt="" />
               <button type="button" data-remove-vimg="${i}:${j}">×</button>
             </div>`).join("")}
         </div>
@@ -578,6 +656,8 @@ function openProductDialog(product = null) {
   $("#prod-status").value = product?.status || "active";
   $("#prod-ribbon").value = product?.ribbon_text || "";
   $("#prod-thumbnail").value = product?.thumbnail || "";
+  state.prodThumbPending = null;
+  state.prodThumbPreviewUrl = null;
   const preview = $("#prod-thumb-preview");
   if (product?.thumbnail) {
     preview.src = product.thumbnail;
@@ -585,20 +665,24 @@ function openProductDialog(product = null) {
   } else {
     preview.classList.add("hidden");
   }
-  state.gallery = (product?.images || []).map((img) => img.url || img).filter(Boolean);
-  state.variants = (product?.variants || []).map((v) => ({
-    title: v.title,
-    sku: v.sku,
-    currency: v.currency || "usd",
-    price_cents: v.price_cents ?? v.price_in_cents ?? 0,
-    sale_price_cents: v.sale_price_cents ?? v.sale_price_in_cents ?? null,
-    inventory_quantity: v.inventory_quantity ?? 0,
-    manage_inventory: v.manage_inventory !== false,
-    images: (v.images || []).map((img) => img.url || img).filter(Boolean).length
-      ? (v.images || []).map((img) => img.url || img).filter(Boolean)
-      : (v.image_url ? [v.image_url] : []),
-    image_url: v.image_url || null,
-  }));
+  state.gallery = (product?.images || [])
+    .map((img) => img.url || img)
+    .filter(Boolean)
+    .map((url) => ({ image: url }));
+  state.variants = (product?.variants || []).map((v) => {
+    const imgs = (v.images || []).map((img) => img.url || img).filter(Boolean);
+    return {
+      title: v.title,
+      sku: v.sku,
+      currency: v.currency || "usd",
+      price_cents: v.price_cents ?? v.price_in_cents ?? 0,
+      sale_price_cents: v.sale_price_cents ?? v.sale_price_in_cents ?? null,
+      inventory_quantity: v.inventory_quantity ?? 0,
+      manage_inventory: v.manage_inventory !== false,
+      images: (imgs.length ? imgs : (v.image_url ? [v.image_url] : [])).map((url) => ({ image: url })),
+      image_url: v.image_url || null,
+    };
+  });
   if (!state.variants.length) {
     state.variants = [{ title: "Default", sku: "", currency: "usd", price_cents: 0, sale_price_cents: null, inventory_quantity: 10, manage_inventory: true, images: [] }];
   }
@@ -647,52 +731,69 @@ function bindEvents() {
   $("#promo-banners-editor").addEventListener("click", (e) => {
     if (e.target.dataset.removePromo != null) {
       collectPromoFromDOM();
-      state.promoBanners.splice(Number(e.target.dataset.removePromo), 1);
+      const idx = Number(e.target.dataset.removePromo);
+      revokePreview(state.promoBanners[idx]);
+      state.promoBanners.splice(idx, 1);
       renderPromoBanners();
     }
   });
-  $("#promo-banners-editor").addEventListener("change", async (e) => {
+  $("#promo-banners-editor").addEventListener("change", (e) => {
     if (e.target.dataset.promoFile != null) {
       const i = Number(e.target.dataset.promoFile);
       const file = e.target.files?.[0];
       if (!file) return;
       collectPromoFromDOM();
-      state.promoBanners[i].image = await uploadFile(file);
+      setPendingFile(state.promoBanners[i], file);
       renderPromoBanners();
     }
   });
-  $("#brand-logo-file").addEventListener("change", async (e) => {
+  $("#brand-logo-file").addEventListener("change", (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = await uploadFile(file);
-    $("#brand-logo-url").value = url;
-    setPreview("#brand-logo-preview", url);
+    state.brandLogoPending = file;
+    if (state.brandLogoPreviewUrl) URL.revokeObjectURL(state.brandLogoPreviewUrl);
+    state.brandLogoPreviewUrl = URL.createObjectURL(file);
+    $("#brand-logo-url").value = state.brandLogoPreviewUrl;
+    setPreview("#brand-logo-preview", state.brandLogoPreviewUrl);
   });
-  $("#brand-hero-file").addEventListener("change", async (e) => {
+  $("#brand-hero-file").addEventListener("change", (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = await uploadFile(file);
-    $("#brand-hero-image").value = url;
-    $("#brand-hero-image-url").value = url;
-    setPreview("#brand-hero-preview", url);
+    state.brandHeroPending = file;
+    if (state.brandHeroPreviewUrl) URL.revokeObjectURL(state.brandHeroPreviewUrl);
+    state.brandHeroPreviewUrl = URL.createObjectURL(file);
+    $("#brand-hero-image").value = state.brandHeroPreviewUrl;
+    $("#brand-hero-image-url").value = state.brandHeroPreviewUrl;
+    setPreview("#brand-hero-preview", state.brandHeroPreviewUrl);
   });
-  $("#brand-story-file").addEventListener("change", async (e) => {
+  $("#brand-story-file").addEventListener("change", (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = await uploadFile(file);
-    $("#brand-story-image").value = url;
-    $("#brand-story-image-url").value = url;
-    setPreview("#brand-story-preview", url);
+    state.brandStoryPending = file;
+    if (state.brandStoryPreviewUrl) URL.revokeObjectURL(state.brandStoryPreviewUrl);
+    state.brandStoryPreviewUrl = URL.createObjectURL(file);
+    $("#brand-story-image").value = state.brandStoryPreviewUrl;
+    $("#brand-story-image-url").value = state.brandStoryPreviewUrl;
+    setPreview("#brand-story-preview", state.brandStoryPreviewUrl);
   });
   $("#brand-hero-image-url").addEventListener("input", (e) => {
+    if (state.brandHeroPreviewUrl) URL.revokeObjectURL(state.brandHeroPreviewUrl);
+    state.brandHeroPending = null;
+    state.brandHeroPreviewUrl = null;
     $("#brand-hero-image").value = e.target.value;
     setPreview("#brand-hero-preview", e.target.value);
   });
   $("#brand-story-image-url").addEventListener("input", (e) => {
+    if (state.brandStoryPreviewUrl) URL.revokeObjectURL(state.brandStoryPreviewUrl);
+    state.brandStoryPending = null;
+    state.brandStoryPreviewUrl = null;
     $("#brand-story-image").value = e.target.value;
     setPreview("#brand-story-preview", e.target.value);
   });
   $("#brand-logo-url").addEventListener("input", (e) => {
+    if (state.brandLogoPreviewUrl) URL.revokeObjectURL(state.brandLogoPreviewUrl);
+    state.brandLogoPending = null;
+    state.brandLogoPreviewUrl = null;
     setPreview("#brand-logo-preview", e.target.value);
   });
 
@@ -701,13 +802,33 @@ function bindEvents() {
   $("#cat-cancel").addEventListener("click", () => $("#category-dialog").close());
   $("#prod-cancel").addEventListener("click", () => $("#product-dialog").close());
 
-  $("#cat-image-file").addEventListener("change", async (e) => {
+  function discardCategoryPendingUploads() {
+    if (state.catImagePreviewUrl) URL.revokeObjectURL(state.catImagePreviewUrl);
+    state.catImagePending = null;
+    state.catImagePreviewUrl = null;
+    state.fabrics.forEach(revokePreview);
+    state.prints.forEach(revokePreview);
+  }
+  $("#category-dialog").addEventListener("close", discardCategoryPendingUploads);
+
+  function discardProductPendingUploads() {
+    if (state.prodThumbPreviewUrl) URL.revokeObjectURL(state.prodThumbPreviewUrl);
+    state.prodThumbPending = null;
+    state.prodThumbPreviewUrl = null;
+    state.gallery.forEach(revokePreview);
+    state.variants.forEach((v) => (v.images || []).forEach(revokePreview));
+  }
+  $("#product-dialog").addEventListener("close", discardProductPendingUploads);
+
+  $("#cat-image-file").addEventListener("change", (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = await uploadFile(file);
-    $("#cat-image-url").value = url;
+    state.catImagePending = file;
     const preview = $("#cat-image-preview");
-    preview.src = url;
+    if (state.catImagePreviewUrl) URL.revokeObjectURL(state.catImagePreviewUrl);
+    state.catImagePreviewUrl = URL.createObjectURL(file);
+    $("#cat-image-url").value = state.catImagePreviewUrl;
+    preview.src = state.catImagePreviewUrl;
     preview.classList.remove("hidden");
   });
 
@@ -715,37 +836,59 @@ function bindEvents() {
     e.preventDefault();
     collectFabricsFromDOM();
     collectPrintsFromDOM();
-    const id = $("#cat-id").value;
-    const fabrics = state.fabrics
-      .map((f) => ({
-        id: (f.id || slugifyLocal(f.name)).trim(),
-        name: (f.name || "").trim(),
-        image: (f.image || "").trim(),
-      }))
-      .filter((f) => f.name);
-    const prints = state.prints
-      .map((p) => ({
-        id: (p.id || slugifyLocal(p.name)).trim(),
-        name: (p.name || "").trim(),
-        image: (p.image || "").trim(),
-      }))
-      .filter((p) => p.name);
-    const body = {
-      name: $("#cat-name").value.trim(),
-      slug: $("#cat-slug").value.trim(),
-      type: $("#cat-type").value,
-      parent_id: $("#cat-parent").value ? Number($("#cat-parent").value) : null,
-      description: $("#cat-description").value || null,
-      sort_order: Number($("#cat-sort").value || 0),
-      image_url: $("#cat-image-url").value || null,
-      fabrics,
-      prints,
-      is_active: true,
-    };
-    if (id) await api(`/api/admin/categories/${id}`, { method: "PUT", body });
-    else await api("/api/admin/categories", { method: "POST", body });
-    $("#category-dialog").close();
-    await loadCategories();
+    const submitBtn = $("#category-form button[type=submit]");
+    const status = $("#category-dialog-status");
+    if (submitBtn) submitBtn.disabled = true;
+    if (status) status.textContent = "Uploading images…";
+    try {
+      let categoryImageUrl = $("#cat-image-url").value || null;
+      if (state.catImagePending) {
+        categoryImageUrl = await uploadFile(state.catImagePending);
+        if (state.catImagePreviewUrl) URL.revokeObjectURL(state.catImagePreviewUrl);
+        state.catImagePending = null;
+        state.catImagePreviewUrl = null;
+      }
+      await resolvePendingFilesIn(state.fabrics);
+      await resolvePendingFilesIn(state.prints);
+
+      const id = $("#cat-id").value;
+      const fabrics = state.fabrics
+        .map((f) => ({
+          id: (f.id || slugifyLocal(f.name)).trim(),
+          name: (f.name || "").trim(),
+          image: (f.image || "").trim(),
+        }))
+        .filter((f) => f.name);
+      const prints = state.prints
+        .map((p) => ({
+          id: (p.id || slugifyLocal(p.name)).trim(),
+          name: (p.name || "").trim(),
+          image: (p.image || "").trim(),
+        }))
+        .filter((p) => p.name);
+      const body = {
+        name: $("#cat-name").value.trim(),
+        slug: $("#cat-slug").value.trim(),
+        type: $("#cat-type").value,
+        parent_id: $("#cat-parent").value ? Number($("#cat-parent").value) : null,
+        description: $("#cat-description").value || null,
+        sort_order: Number($("#cat-sort").value || 0),
+        image_url: categoryImageUrl,
+        fabrics,
+        prints,
+        is_active: true,
+      };
+      if (status) status.textContent = "Saving…";
+      if (id) await api(`/api/admin/categories/${id}`, { method: "PUT", body });
+      else await api("/api/admin/categories", { method: "POST", body });
+      if (status) status.textContent = "";
+      $("#category-dialog").close();
+      await loadCategories();
+    } catch (err) {
+      if (status) status.textContent = err.message || "Save failed";
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
   });
 
   $("#add-fabric-btn")?.addEventListener("click", () => {
@@ -764,6 +907,7 @@ function bindEvents() {
     const removeIdx = e.target.dataset.removeFabric;
     if (removeIdx == null) return;
     collectFabricsFromDOM();
+    revokePreview(state.fabrics[Number(removeIdx)]);
     state.fabrics.splice(Number(removeIdx), 1);
     renderFabricsEditor();
   });
@@ -772,31 +916,30 @@ function bindEvents() {
     const removeIdx = e.target.dataset.removePrint;
     if (removeIdx == null) return;
     collectPrintsFromDOM();
+    revokePreview(state.prints[Number(removeIdx)]);
     state.prints.splice(Number(removeIdx), 1);
     renderPrintsEditor();
   });
 
-  $("#fabrics-editor")?.addEventListener("change", async (e) => {
+  $("#fabrics-editor")?.addEventListener("change", (e) => {
     const fileInput = e.target.closest("[data-fabric-file]");
     if (!fileInput) return;
     const file = fileInput.files?.[0];
     if (!file) return;
     const i = Number(fileInput.dataset.fabricFile);
     collectFabricsFromDOM();
-    const url = await uploadFile(file);
-    state.fabrics[i] = { ...state.fabrics[i], image: url };
+    setPendingFile(state.fabrics[i], file);
     renderFabricsEditor();
   });
 
-  $("#prints-editor")?.addEventListener("change", async (e) => {
+  $("#prints-editor")?.addEventListener("change", (e) => {
     const fileInput = e.target.closest("[data-print-file]");
     if (!fileInput) return;
     const file = fileInput.files?.[0];
     if (!file) return;
     const i = Number(fileInput.dataset.printFile);
     collectPrintsFromDOM();
-    const url = await uploadFile(file);
-    state.prints[i] = { ...state.prints[i], image: url };
+    setPendingFile(state.prints[i], file);
     renderPrintsEditor();
   });
 
@@ -806,6 +949,11 @@ function bindEvents() {
     const i = Number(card.dataset.fabricIndex);
     const field = e.target.getAttribute("data-f");
     if (!field) return;
+    if (field === "image") {
+      revokePreview(state.fabrics[i]);
+      delete state.fabrics[i]?._pendingFile;
+      delete state.fabrics[i]?._previewUrl;
+    }
     state.fabrics[i] = { ...state.fabrics[i], [field]: e.target.value };
   });
 
@@ -815,6 +963,11 @@ function bindEvents() {
     const i = Number(card.dataset.printIndex);
     const field = e.target.getAttribute("data-p");
     if (!field) return;
+    if (field === "image") {
+      revokePreview(state.prints[i]);
+      delete state.prints[i]?._pendingFile;
+      delete state.prints[i]?._previewUrl;
+    }
     state.prints[i] = { ...state.prints[i], [field]: e.target.value };
   });
 
@@ -831,20 +984,24 @@ function bindEvents() {
     }
   });
 
-  $("#prod-thumb-file").addEventListener("change", async (e) => {
+  $("#prod-thumb-file").addEventListener("change", (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = await uploadFile(file);
-    $("#prod-thumbnail").value = url;
+    state.prodThumbPending = file;
+    if (state.prodThumbPreviewUrl) URL.revokeObjectURL(state.prodThumbPreviewUrl);
+    state.prodThumbPreviewUrl = URL.createObjectURL(file);
+    $("#prod-thumbnail").value = state.prodThumbPreviewUrl;
     const preview = $("#prod-thumb-preview");
-    preview.src = url;
+    preview.src = state.prodThumbPreviewUrl;
     preview.classList.remove("hidden");
   });
 
-  $("#prod-gallery-file").addEventListener("change", async (e) => {
+  $("#prod-gallery-file").addEventListener("change", (e) => {
     const files = [...(e.target.files || [])];
     for (const file of files) {
-      state.gallery.push(await uploadFile(file));
+      const item = { image: "" };
+      setPendingFile(item, file);
+      state.gallery.push(item);
     }
     renderGallery();
     e.target.value = "";
@@ -852,7 +1009,9 @@ function bindEvents() {
 
   $("#prod-gallery").addEventListener("click", (e) => {
     if (e.target.dataset.removeGallery != null) {
-      state.gallery.splice(Number(e.target.dataset.removeGallery), 1);
+      const idx = Number(e.target.dataset.removeGallery);
+      revokePreview(state.gallery[idx]);
+      state.gallery.splice(idx, 1);
       renderGallery();
     }
   });
@@ -872,19 +1031,22 @@ function bindEvents() {
     if (e.target.dataset.removeVimg != null) {
       collectVariantsFromDOM();
       const [vi, ii] = e.target.dataset.removeVimg.split(":").map(Number);
+      revokePreview(state.variants[vi].images[ii]);
       state.variants[vi].images.splice(ii, 1);
       renderVariantsEditor();
     }
   });
 
-  $("#variants-editor").addEventListener("change", async (e) => {
+  $("#variants-editor").addEventListener("change", (e) => {
     if (e.target.dataset.vimgFile != null) {
       collectVariantsFromDOM();
       const i = Number(e.target.dataset.vimgFile);
       const files = [...(e.target.files || [])];
+      state.variants[i].images = state.variants[i].images || [];
       for (const file of files) {
-        state.variants[i].images = state.variants[i].images || [];
-        state.variants[i].images.push(await uploadFile(file));
+        const item = { image: "" };
+        setPendingFile(item, file);
+        state.variants[i].images.push(item);
       }
       renderVariantsEditor();
     }
@@ -893,27 +1055,52 @@ function bindEvents() {
   $("#product-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     collectVariantsFromDOM();
-    const id = $("#prod-id").value;
-    const body = {
-      title: $("#prod-title").value.trim(),
-      slug: $("#prod-slug").value.trim(),
-      subtitle: $("#prod-subtitle").value || null,
-      description: $("#prod-description").value || null,
-      thumbnail: $("#prod-thumbnail").value || state.gallery[0] || null,
-      category_id: $("#prod-category").value ? Number($("#prod-category").value) : null,
-      ribbon_text: $("#prod-ribbon").value || null,
-      status: $("#prod-status").value,
-      purchasable: true,
-      images: state.gallery,
-      variants: state.variants.filter((v) => v.title.trim()).map((v) => ({
-        ...v,
-        image_url: v.images?.[0] || null,
-      })),
-    };
-    if (id) await api(`/api/admin/products/${id}`, { method: "PUT", body });
-    else await api("/api/admin/products", { method: "POST", body });
-    $("#product-dialog").close();
-    await loadProducts();
+    const submitBtn = $("#product-form button[type=submit]");
+    const status = $("#product-dialog-status");
+    if (submitBtn) submitBtn.disabled = true;
+    if (status) status.textContent = "Uploading images…";
+    try {
+      let thumbnailUrl = $("#prod-thumbnail").value || null;
+      if (state.prodThumbPending) {
+        thumbnailUrl = await uploadFile(state.prodThumbPending);
+        if (state.prodThumbPreviewUrl) URL.revokeObjectURL(state.prodThumbPreviewUrl);
+        state.prodThumbPending = null;
+        state.prodThumbPreviewUrl = null;
+      }
+      await resolvePendingFilesIn(state.gallery);
+      for (const v of state.variants) {
+        await resolvePendingFilesIn(v.images || []);
+      }
+
+      const id = $("#prod-id").value;
+      const galleryUrls = state.gallery.map((g) => g.image).filter(Boolean);
+      const body = {
+        title: $("#prod-title").value.trim(),
+        slug: $("#prod-slug").value.trim(),
+        subtitle: $("#prod-subtitle").value || null,
+        description: $("#prod-description").value || null,
+        thumbnail: thumbnailUrl || galleryUrls[0] || null,
+        category_id: $("#prod-category").value ? Number($("#prod-category").value) : null,
+        ribbon_text: $("#prod-ribbon").value || null,
+        status: $("#prod-status").value,
+        purchasable: true,
+        images: galleryUrls,
+        variants: state.variants.filter((v) => v.title.trim()).map((v) => {
+          const vImages = (v.images || []).map((im) => im.image).filter(Boolean);
+          return { ...v, images: vImages, image_url: vImages[0] || null };
+        }),
+      };
+      if (status) status.textContent = "Saving…";
+      if (id) await api(`/api/admin/products/${id}`, { method: "PUT", body });
+      else await api("/api/admin/products", { method: "POST", body });
+      if (status) status.textContent = "";
+      $("#product-dialog").close();
+      await loadProducts();
+    } catch (err) {
+      if (status) status.textContent = err.message || "Save failed";
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
   });
 
   $("#products-list").addEventListener("click", async (e) => {
