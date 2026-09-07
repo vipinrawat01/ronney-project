@@ -252,7 +252,7 @@ async function loadBranding() {
   if (status) status.textContent = "";
 }
 
-function showBrandingToast(message, isError = false) {
+function showToast(message, isError = false) {
   let toast = $("#branding-toast");
   if (!toast) {
     toast = document.createElement("div");
@@ -263,8 +263,22 @@ function showBrandingToast(message, isError = false) {
   toast.textContent = message;
   toast.classList.toggle("error", !!isError);
   toast.classList.add("show");
-  clearTimeout(showBrandingToast._timer);
-  showBrandingToast._timer = setTimeout(() => toast.classList.remove("show"), 3200);
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => toast.classList.remove("show"), 3200);
+}
+
+function setButtonLoading(button, loadingText) {
+  if (!button) return () => {};
+  const originalText = button.dataset.originalText || button.textContent;
+  button.dataset.originalText = originalText;
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = loadingText;
+  return () => {
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+    button.textContent = originalText;
+  };
 }
 
 function collectBrandingPayload() {
@@ -312,7 +326,7 @@ function collectBrandingPayload() {
 async function saveBranding() {
   const status = $("#branding-status");
   const btn = $("#save-branding-btn");
-  if (btn) btn.disabled = true;
+  const restoreButton = setButtonLoading(btn, "Saving...");
   try {
     if (status) status.textContent = "Uploading images…";
     if (state.brandLogoPending) {
@@ -347,12 +361,12 @@ async function saveBranding() {
       localStorage.setItem("alliraa_branding_updated_at", String(Date.now()));
     } catch {}
     if (status) status.textContent = "";
-    showBrandingToast("Branding saved successfully");
+    showToast("Branding saved successfully");
   } catch (err) {
     if (status) status.textContent = err.message || "Save failed";
-    showBrandingToast(err.message || "Save failed", true);
+    showToast(err.message || "Save failed", true);
   } finally {
-    if (btn) btn.disabled = false;
+    restoreButton();
   }
 }
 
@@ -455,9 +469,11 @@ function renderProducts() {
             <td>${escapeHtml(p.category?.name || "—")}</td>
             <td>${(p.variants || []).length}</td>
             <td>${money(p.price_in_cents || 0, p.currency || "usd")}</td>
-            <td class="actions">
-              <button class="ghost" data-edit-prod="${p.id}">Edit</button>
-              <button class="danger" data-del-prod="${p.id}">Delete</button>
+            <td>
+              <div class="actions table-actions">
+                <button class="ghost" data-edit-prod="${p.id}">Edit</button>
+                <button class="danger" data-del-prod="${p.id}">Delete</button>
+              </div>
             </td>
           </tr>`).join("")}
       </tbody>
@@ -804,7 +820,9 @@ function bindEvents() {
   $("#add-category-btn").addEventListener("click", () => openCategoryDialog());
   $("#add-product-btn").addEventListener("click", () => openProductDialog());
   $("#cat-cancel").addEventListener("click", () => $("#category-dialog").close());
+  $("#cat-close").addEventListener("click", () => $("#category-dialog").close());
   $("#prod-cancel").addEventListener("click", () => $("#product-dialog").close());
+  $("#prod-close").addEventListener("click", () => $("#product-dialog").close());
 
   function discardCategoryPendingUploads() {
     if (state.catImagePreviewUrl) URL.revokeObjectURL(state.catImagePreviewUrl);
@@ -842,7 +860,7 @@ function bindEvents() {
     collectPrintsFromDOM();
     const submitBtn = $("#category-form button[type=submit]");
     const status = $("#category-dialog-status");
-    if (submitBtn) submitBtn.disabled = true;
+    const restoreButton = setButtonLoading(submitBtn, "Saving...");
     if (status) status.textContent = "Uploading images…";
     try {
       let categoryImageUrl = $("#cat-image-url").value || null;
@@ -888,10 +906,12 @@ function bindEvents() {
       if (status) status.textContent = "";
       $("#category-dialog").close();
       await loadCategories();
+      showToast(id ? "Category updated successfully" : "Category created successfully");
     } catch (err) {
       if (status) status.textContent = err.message || "Save failed";
+      showToast(err.message || "Failed to save category", true);
     } finally {
-      if (submitBtn) submitBtn.disabled = false;
+      restoreButton();
     }
   });
 
@@ -1061,7 +1081,7 @@ function bindEvents() {
     collectVariantsFromDOM();
     const submitBtn = $("#product-form button[type=submit]");
     const status = $("#product-dialog-status");
-    if (submitBtn) submitBtn.disabled = true;
+    const restoreButton = setButtonLoading(submitBtn, "Saving...");
     if (status) status.textContent = "Uploading images…";
     try {
       let thumbnailUrl = $("#prod-thumbnail").value || null;
@@ -1100,10 +1120,12 @@ function bindEvents() {
       if (status) status.textContent = "";
       $("#product-dialog").close();
       await loadProducts();
+      showToast(id ? "Product updated successfully" : "Product created successfully");
     } catch (err) {
       if (status) status.textContent = err.message || "Save failed";
+      showToast(err.message || "Failed to save product", true);
     } finally {
-      if (submitBtn) submitBtn.disabled = false;
+      restoreButton();
     }
   });
 

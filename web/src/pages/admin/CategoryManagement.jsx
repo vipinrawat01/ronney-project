@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -40,6 +50,7 @@ const CategoryManagement = () => {
   const [form, setForm] = useState(emptyForm);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingCategoryId, setDeletingCategoryId] = useState(null);
 
   const load = async () => {
     try {
@@ -213,11 +224,12 @@ const CategoryManagement = () => {
     }
   };
 
-  const onDelete = async (id) => {
-    if (!confirm('Delete this category?')) return;
+  const onDelete = async () => {
+    if (!deletingCategoryId) return;
     try {
-      await deleteCategory(id);
+      await deleteCategory(deletingCategoryId);
       toast.success('Deleted');
+      setDeletingCategoryId(null);
       await load();
     } catch (err) {
       toast.error(err.message || 'Delete failed');
@@ -274,7 +286,7 @@ const CategoryManagement = () => {
                 <TableCell>{categories.find((p) => p.id === c.parent_id)?.name || '—'}</TableCell>
                 <TableCell className="text-right">
                   <Button variant="outline" size="sm" className="mr-2" onClick={() => openEdit(c)}>Edit</Button>
-                  <Button variant="destructive" size="sm" onClick={() => onDelete(c.id)}>Delete</Button>
+                  <Button variant="destructive" size="sm" onClick={() => setDeletingCategoryId(c.id)}>Delete</Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -287,9 +299,36 @@ const CategoryManagement = () => {
         </Table>
       </div>
 
+      <AlertDialog open={Boolean(deletingCategoryId)} onOpenChange={(nextOpen) => !nextOpen && setDeletingCategoryId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete category?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the selected category from the admin panel.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {open && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <form onSubmit={onSave} className="bg-card border border-border rounded-xl w-full max-w-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+          <form onSubmit={onSave} className="relative bg-card border border-border rounded-xl w-full max-w-2xl p-6 pr-12 space-y-4 max-h-[90vh] overflow-y-auto">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-3 top-3"
+              onClick={() => setOpen(false)}
+              aria-label="Close popup"
+            >
+              <X className="w-4 h-4" />
+            </Button>
             <h2 className="text-xl font-serif">{form.id ? 'Edit category' : 'Add category'}</h2>
             <input className="w-full border rounded px-3 py-2" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             <input className="w-full border rounded px-3 py-2" placeholder="Slug" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />

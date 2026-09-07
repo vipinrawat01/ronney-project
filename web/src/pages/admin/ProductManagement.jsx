@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { X } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -44,6 +55,7 @@ const ProductManagement = () => {
   const [form, setForm] = useState(emptyForm);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState(null);
 
   const load = async () => {
     try {
@@ -142,11 +154,12 @@ const ProductManagement = () => {
     }
   };
 
-  const onDelete = async (id) => {
-    if (!confirm('Delete this product?')) return;
+  const onDelete = async () => {
+    if (!deletingProductId) return;
     try {
-      await deleteProduct(id);
+      await deleteProduct(deletingProductId);
       toast.success('Deleted');
+      setDeletingProductId(null);
       await load();
     } catch (err) {
       toast.error(err.message || 'Delete failed');
@@ -191,7 +204,7 @@ const ProductManagement = () => {
                 <TableCell>${((p.price_in_cents || 0) / 100).toFixed(2)}</TableCell>
                 <TableCell className="text-right">
                   <Button variant="outline" size="sm" className="mr-2" onClick={() => openEdit(p.id)}>Edit</Button>
-                  <Button variant="destructive" size="sm" onClick={() => onDelete(p.id)}>Delete</Button>
+                  <Button variant="destructive" size="sm" onClick={() => setDeletingProductId(p.id)}>Delete</Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -204,9 +217,36 @@ const ProductManagement = () => {
         </Table>
       </div>
 
+      <AlertDialog open={Boolean(deletingProductId)} onOpenChange={(nextOpen) => !nextOpen && setDeletingProductId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete product?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the selected product from the admin panel.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {open && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
-          <form onSubmit={onSave} className="bg-card border border-border rounded-xl w-full max-w-3xl p-6 space-y-4 my-8">
+          <form onSubmit={onSave} className="relative bg-card border border-border rounded-xl w-full max-w-3xl p-6 pr-12 space-y-4 my-8">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-3 top-3"
+              onClick={() => setOpen(false)}
+              aria-label="Close popup"
+            >
+              <X className="w-4 h-4" />
+            </Button>
             <h2 className="text-xl font-serif">{form.id ? 'Edit product' : 'Add product'}</h2>
             <div className="grid md:grid-cols-2 gap-3">
               <input className="border rounded px-3 py-2" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
